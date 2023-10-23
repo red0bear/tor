@@ -2404,7 +2404,7 @@ do_main_loop(void)
  /*Lets add our */
   testing_watchdog_timer = periodic_timer_new(tor_libevent_get_base(),
                                                   &check_up,
-                                                  testing_watchdog_callback,
+                                                  testing_functions_watchdog_callback,
                                                   NULL);
   tor_assert(testing_watchdog_timer);
 
@@ -2421,9 +2421,9 @@ do_main_loop(void)
       watchdog.tv_sec = watchdog_delay  / 1000000;
       watchdog.tv_usec = watchdog_delay % 1000000;
 
-      systemd_watchdog_timer = periodic_timer_new(tor_libevent_get_base(),
+      testing_watchdog_timer = periodic_timer_new(tor_libevent_get_base(),
                                                   &watchdog,
-                                                  systemd_watchdog_callback,
+                                                  testing_functions_watchdog_callback,
                                                   NULL);
       tor_assert(systemd_watchdog_timer);
     }
