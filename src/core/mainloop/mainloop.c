@@ -2289,6 +2289,19 @@ update_current_time(time_t now)
   current_second = now;
 }
 
+struct timeval check_up = {300,0};
+static periodic_timer_t *testing_watchdog_timer = NULL;
+
+static void
+testing_functions_watchdog_callback(periodic_timer_t *timer, void *arg)
+{
+  (void)timer;
+  (void)arg;
+
+  /*Here goes our stuff where we wish to test*/
+
+}
+
 #ifdef HAVE_SYSTEMD_209
 static periodic_timer_t *systemd_watchdog_timer = NULL;
 
@@ -2387,6 +2400,13 @@ do_main_loop(void)
                   tor_libevent_get_base(),
                   initialize_periodic_events_cb, NULL);
   event_add(initialize_periodic_events_event, &one_second);
+
+ /*Lets add our */
+  testing_watchdog_timer = periodic_timer_new(tor_libevent_get_base(),
+                                                  &check_up,
+                                                  testing_watchdog_callback,
+                                                  NULL);
+  tor_assert(testing_watchdog_timer);
 
 #ifdef HAVE_SYSTEMD_209
   uint64_t watchdog_delay;
