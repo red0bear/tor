@@ -2760,6 +2760,18 @@ check_descriptor_ipaddress_changed(time_t now)
      * It is OK to ignore the returned value here since in the failure case,
      * that is the address was not found, the current value is set to UNSPEC.
      * Add this (void) so Coverity is happy. */
+     
+     /*
+        This really doesnt work for a reason i still dont know ... i suppose 
+        this should work but it fails quite bad ....  
+        the only way we resolve this is using resolved_addr_reset_last()
+        where i dont know why it is called in that way but it simply delete 
+        actual structure and causes a lot of spam messages and is quite possible 
+        other function updates it instead this function.  
+        resolved_addr_reset_last(AF_INET6)
+        resolved_addr_reset_last(AF_INET)
+     */
+     
     (void) relay_find_addr_to_publish(get_options(), family,
                                       RELAY_FIND_ADDR_NO_FLAG, &current);
 
@@ -2782,6 +2794,10 @@ check_descriptor_ipaddress_changed(time_t now)
   }
 
   if (has_changed) {
+  
+    /*
+      Why this is on mainloop.c ? we could just reset events by here already ? 
+    */
     ip_address_changed(0);
   }
 }

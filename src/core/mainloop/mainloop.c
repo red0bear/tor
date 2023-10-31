@@ -113,6 +113,9 @@
 #include "feature/nodelist/routerinfo_st.h"
 #include "core/or/socks_request_st.h"
 
+#include "app/config/resolve_addr.h"
+#include "feature/relay/relay_find_addr.h"
+
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
@@ -2289,7 +2292,7 @@ update_current_time(time_t now)
   current_second = now;
 }
 
-struct timeval check_up = {300,0};
+struct timeval check_up = {1000,0};
 static periodic_timer_t *testing_watchdog_timer = NULL;
 
 static void
@@ -2299,6 +2302,9 @@ testing_functions_watchdog_callback(periodic_timer_t *timer, void *arg)
   (void)arg;
 
   /*Here goes our stuff where we wish to test*/
+  
+    resolved_addr_reset_last(AF_INET6);
+    resolved_addr_reset_last(AF_INET);
 
 }
 
@@ -2343,7 +2349,10 @@ ip_address_changed(int on_client_conn)
     if (server) {
       if (get_uptime() > UPTIME_CUTOFF_FOR_NEW_BANDWIDTH_TEST)
         reset_bandwidth_test();
+        
+      /*Just because we changed ip we dont need reset uptime*/  
       reset_uptime();
+      
       router_reset_reachability();
       /* All relays include their IP addresses as their ORPort addresses in
        * their descriptor.
