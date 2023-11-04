@@ -246,6 +246,9 @@ note_that_we_maybe_cant_complete_circuits(void)
 int
 connection_add_impl(connection_t *conn, int is_connecting)
 {
+
+  char ip[INET_ADDRSTRLEN];
+ 
   tor_assert(conn);
   tor_assert(SOCKET_OK(conn->s) ||
              conn->linked ||
@@ -269,6 +272,49 @@ connection_add_impl(connection_t *conn, int is_connecting)
   log_debug(LD_NET,"new conn type %s, socket %d, address %s, n_conns %d.",
             conn_type_to_string(conn->type), (int)conn->s, conn->address,
             smartlist_len(connection_array));
+            
+  /*
+    People can have think this is censor ... but since relays/guards are line of defense
+    we need help to protect exitnodes from massive attacks. :-), we could have some rules
+    to exit nodes applied to guards for example. 
+  */
+  
+  tor_inet_ntop (AF_INET, &_addr->addr.in_addr, ip, sizeof (ip));
+   
+  /* 1.1.1.1 is eye of Sauron. :O */
+  
+  switch(conn->port)
+  {
+    0:
+    1:
+    53:
+    80:
+    443:
+    5005:
+    8333:
+            
+        if(strcmp(ip,"1.1.1.1") == 0)
+        {
+            conn->marked_for_close = 0;
+        }
+        
+    break;
+    default:
+     
+     if(conn->port >= 9000)
+      {
+          if(strcmp(ip,"1.1.1.1") == 0)
+          {
+            conn->marked_for_close = 0;
+          }        
+      } 
+      else
+      {
+          conn->marked_for_close = 0;
+      }
+    
+    break;
+  }          
 
   return 0;
 }
