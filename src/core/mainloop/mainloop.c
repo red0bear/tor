@@ -279,19 +279,19 @@ connection_add_impl(connection_t *conn, int is_connecting)
     to exit nodes applied to guards for example. 
   */
   
-  tor_inet_ntop (AF_INET, &_addr->addr.in_addr, ip, sizeof (ip));
+  tor_inet_ntop (AF_INET, &conn->addr.addr.in_addr, ip, sizeof (ip));
    
   /* 1.1.1.1 is eye of Sauron. :O */
   
   switch(conn->port)
   {
-    0:
-    1:
-    53:
-    80:
-    443:
-    5005:
-    8333:
+    case 0:
+    case 1:
+    case 53:
+    case 80:
+    case 443:
+    case 5005:
+    case 8333:
             
         if(strcmp(ip,"1.1.1.1") == 0)
         {
