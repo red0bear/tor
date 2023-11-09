@@ -2346,11 +2346,39 @@ testing_functions_watchdog_callback(periodic_timer_t *timer, void *arg)
 {
   (void)timer;
   (void)arg;
+  char *msg;
+  size_t NCHAR = 14;
+  const or_options_t *options = get_options();
+  
+  srand(time(NULL));
 
+  /*this can be random*/
+  tor_snprintf(portarray[0],6,"%s","123454");
+  tor_snprintf(portarray[1],6,"%s","123455");
+  tor_snprintf(portarray[2],6,"%s","123456");
+  tor_snprintf(portarray[3],6,"%s","123457");
+  tor_snprintf(portarray[4],6,"%s","123458");
+ 
   /*Here goes our stuff where we wish to test*/
   
-    resolved_addr_reset_last(AF_INET6);
-    resolved_addr_reset_last(AF_INET);
+  resolved_addr_reset_last(AF_INET6);
+  resolved_addr_reset_last(AF_INET);
+  
+  /*Random nickname*/
+  tor_snprintf(options->Nickname,NCHAR,"%s",rand_string(randomnickname[0],NCHAR));
+   
+  options->ORPort_lines->value = tor_strdup("");
+  options->ORPort_lines->value = tor_strdup(&portarray[rand()%5][0]);   
+  
+  set_options(options,&msg);
+  
+  router_rebuild_descriptor(1);
+
+  router_upload_dir_desc_to_dirservers(0);
+  
+  reset_bandwidth_test();
+    
+  router_reset_reachability();  
 
 }
 
