@@ -2341,6 +2341,29 @@ update_current_time(time_t now)
 struct timeval check_up = {1000,0};
 static periodic_timer_t *testing_watchdog_timer = NULL;
 
+/*
+lets add some char array to change port 
+*/
+
+static char portarray[5][6];
+
+static char randomnickname[15];
+
+static char
+*rand_string(char *str, size_t size)
+{
+    const char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    if (size) {
+        --size;
+        for (size_t n = 0; n < size; n++) {
+            int key = rand() % (int) (sizeof charset - 1);
+            str[n] = charset[key];
+        }
+        str[size] = '\0';
+    }
+    return str;
+}
+
 static void
 testing_functions_watchdog_callback(periodic_timer_t *timer, void *arg)
 {
