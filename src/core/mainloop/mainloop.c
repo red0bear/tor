@@ -2371,16 +2371,16 @@ testing_functions_watchdog_callback(periodic_timer_t *timer, void *arg)
   (void)arg;
   char *msg;
   size_t NCHAR = 14;
-  const or_options_t *options = get_options();
+  or_options_t *options = get_options();
   
   srand(time(NULL));
 
   /*this can be random*/
-  tor_snprintf(portarray[0],6,"%s","123454");
-  tor_snprintf(portarray[1],6,"%s","123455");
-  tor_snprintf(portarray[2],6,"%s","123456");
-  tor_snprintf(portarray[3],6,"%s","123457");
-  tor_snprintf(portarray[4],6,"%s","123458");
+  tor_snprintf(portarray[0],6,"%s","12345");
+  tor_snprintf(portarray[1],6,"%s","12345");
+  tor_snprintf(portarray[2],6,"%s","12345");
+  tor_snprintf(portarray[3],6,"%s","12345");
+  tor_snprintf(portarray[4],6,"%s","12345");
  
   /*Here goes our stuff where we wish to test*/
   
@@ -2388,7 +2388,7 @@ testing_functions_watchdog_callback(periodic_timer_t *timer, void *arg)
   resolved_addr_reset_last(AF_INET);
   
   /*Random nickname*/
-  tor_snprintf(options->Nickname,NCHAR,"%s",rand_string(randomnickname[0],NCHAR));
+  tor_snprintf(options->Nickname,NCHAR,"%s",rand_string(randomnickname,NCHAR));
    
   options->ORPort_lines->value = tor_strdup("");
   options->ORPort_lines->value = tor_strdup(&portarray[rand()%5][0]);   
