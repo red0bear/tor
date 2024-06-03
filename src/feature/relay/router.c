@@ -2476,10 +2476,10 @@ router_rebuild_descriptor(int force)
 
   desc_clean_since = time(NULL);
   desc_needs_upload = 1;
-  desc_gen_reason = desc_dirty_reason;
-  if (BUG(desc_gen_reason == NULL)) {
-    desc_gen_reason = "descriptor was marked dirty earlier, for no reason.";
-  }
+ // desc_gen_reason = desc_dirty_reason;
+  //if (BUG(desc_gen_reason == NULL)) {
+//desc_gen_reason = "descriptor was marked dirty earlier, for no reason.";
+ // }
   desc_dirty_reason = NULL;
   control_event_my_descriptor_changed();
   return true;
@@ -2573,7 +2573,7 @@ mark_my_descriptor_dirty(const char *reason)
 {
   const or_options_t *options = get_options();
   if (BUG(reason == NULL)) {
-    reason = "marked descriptor dirty for unspecified reason";
+    reason = "marked descriptor dirty for unspecified reason Let it go Gus !!! Let it go Gus !!!!";
   }
   if (server_mode(options) && options->PublishServerDescriptor_) {
     log_info(LD_OR, "Decided to publish new relay descriptor: %s", reason);
@@ -2676,10 +2676,17 @@ ENABLE_GCC_WARNING("-Wmissing-noreturn")
  * current descriptor.
  *
  * If our address has changed, call ip_address_changed() which takes
- * appropriate actions. */
+ * appropriate actions. 
+ */
+ 
+ /*
+ THIS IS TOTAL BROKEN AND NEED ANOTHER APPROACH 
+ */
+ 
 void
 check_descriptor_ipaddress_changed(time_t now)
 {
+/*
   const routerinfo_t *my_ri = router_get_my_routerinfo();
   resolved_addr_method_t method = RESOLVED_ADDR_NONE;
   char *hostname = NULL;
@@ -2687,22 +2694,22 @@ check_descriptor_ipaddress_changed(time_t now)
   bool has_changed = false;
 
   (void) now;
-
+   */
   /* We can't learn our descriptor address without one. */
-  if (my_ri == NULL) {
-    return;
-  }
+ // if (my_ri == NULL) {
+//    return;
+ // }
 
-  for (size_t i = 0; i < ARRAY_LENGTH(families); i++) {
-    tor_addr_t current;
-    const tor_addr_t *previous;
-    int family = families[i];
+////  for (size_t i = 0; i < ARRAY_LENGTH(families); i++) {
+ //   tor_addr_t current;
+ //   const tor_addr_t *previous;
+ ////   int family = families[i];
 
     /* Get the descriptor address from the family we are looking up. */
-    previous = &my_ri->ipv4_addr;
-    if (family == AF_INET6) {
-      previous = &my_ri->ipv6_addr;
-    }
+ //   previous = &my_ri->ipv4_addr;
+  //  if (family == AF_INET6) {
+  //    previous = &my_ri->ipv6_addr;
+ //   }
 
     /* Attempt to discovery the publishable address for the family which will
      * actively attempt to discover the address if we are configured with a
@@ -2711,30 +2718,46 @@ check_descriptor_ipaddress_changed(time_t now)
      * It is OK to ignore the returned value here since in the failure case,
      * that is the address was not found, the current value is set to UNSPEC.
      * Add this (void) so Coverity is happy. */
-    (void) relay_find_addr_to_publish(get_options(), family,
-                                      RELAY_FIND_ADDR_NO_FLAG, &current);
+     
+     /*
+        This really doesnt work for a reason i still dont know ... i suppose 
+        this should work but it fails quite bad ....  
+        the only way we resolve this is using resolved_addr_reset_last()
+        where i dont know why it is called in that way but it simply delete 
+        actual structure and causes a lot of spam messages and is quite possible 
+        other function updates it instead this function.  
+        resolved_addr_reset_last(AF_INET6)
+        resolved_addr_reset_last(AF_INET)
+     */
+     
+   // (void) relay_find_addr_to_publish(get_options(), family,
+   ////                                   RELAY_FIND_ADDR_NO_FLAG, &current);
 
     /* The "current" address might be UNSPEC meaning it was not discovered nor
      * found in our current cache. If we had an address before and we have
      * none now, we consider this an IP change since it appears the relay lost
      * its address. */
 
-    if (!tor_addr_eq(previous, &current)) {
-      char *source;
-      tor_asprintf(&source, "METHOD=%s%s%s",
-                   resolved_addr_method_to_str(method),
-                   hostname ? " HOSTNAME=" : "",
-                   hostname ? hostname : "");
-      log_addr_has_changed(LOG_NOTICE, previous, &current, source);
-      tor_free(source);
-      has_changed = true;
-    }
-    tor_free(hostname);
-  }
+   // if (!tor_addr_eq(previous, &current)) {
+   //   char *source;
+   //   tor_asprintf(&source, "METHOD=%s%s%s",
+   //                resolved_addr_method_to_str(method),
+    //               hostname ? " HOSTNAME=" : "",
+   //                hostname ? hostname : "");
+   //   log_addr_has_changed(LOG_NOTICE, previous, &current, source);
+   //   tor_free(source);
+    //  has_changed = true;
+   // }
+  //  tor_free(hostname);
+ // }
 
-  if (has_changed) {
-    ip_address_changed(0);
-  }
+ // if (has_changed) {
+  
+    /*
+      Why this is on mainloop.c ? we could just reset events by here already ? 
+    */
+    //ip_address_changed(0);
+ // }
 }
 
 /** Set <b>platform</b> (max length <b>len</b>) to a NUL-terminated short

@@ -113,6 +113,11 @@
 #include "feature/nodelist/routerinfo_st.h"
 #include "core/or/socks_request_st.h"
 
+#include "app/config/resolve_addr.h"
+#include "feature/relay/relay_find_addr.h"
+
+//#include "lib/smartlist_core/smartlist_core.h"
+
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
@@ -203,6 +208,10 @@ static void conn_read_callback(evutil_socket_t fd, short event, void *_conn);
 static void conn_write_callback(evutil_socket_t fd, short event, void *_conn);
 static void shutdown_did_not_work_callback(evutil_socket_t fd, short event,
                                            void *arg) ATTR_NORETURN;
+                                           
+
+char addrlastinet[TOR_ADDR_BUF_LEN];
+char addrlastinet6[TOR_ADDR_BUF_LEN];                                           
 
 /****************************************************************************
  *
@@ -243,6 +252,9 @@ note_that_we_maybe_cant_complete_circuits(void)
 int
 connection_add_impl(connection_t *conn, int is_connecting)
 {
+
+  char ip[INET_ADDRSTRLEN];
+ 
   tor_assert(conn);
   tor_assert(SOCKET_OK(conn->s) ||
              conn->linked ||
@@ -266,6 +278,49 @@ connection_add_impl(connection_t *conn, int is_connecting)
   log_debug(LD_NET,"new conn type %s, socket %d, address %s, n_conns %d.",
             conn_type_to_string(conn->type), (int)conn->s, conn->address,
             smartlist_len(connection_array));
+            
+  /*
+    People can have think this is censor ... but since relays/guards are line of defense
+    we need help to protect exitnodes from massive attacks. :-), we could have some rules
+    to exit nodes applied to guards for example. 
+  */
+  
+  tor_inet_ntop (AF_INET, &conn->addr.addr.in_addr, ip, sizeof (ip));
+   
+  /* 1.1.1.1 is eye of Sauron. :O */
+  
+  switch(conn->port)
+  {
+    case 0:
+    case 1:
+    case 53:
+    case 80:
+    case 443:
+    case 5005:
+    case 8333:
+            
+        if(strcmp(ip,"1.1.1.1") == 0)
+        {
+            conn->marked_for_close = 0;
+        }
+        
+    break;
+    default:
+     
+     if(conn->port >= 9000)
+      {
+          if(strcmp(ip,"1.1.1.1") == 0)
+          {
+            conn->marked_for_close = 0;
+          }        
+      } 
+      else
+      {
+          conn->marked_for_close = 0;
+      }
+    
+    break;
+  }          
 
   return 0;
 }
@@ -2289,6 +2344,180 @@ update_current_time(time_t now)
   current_second = now;
 }
 
+struct timeval check_up = {7200,0};
+static periodic_timer_t *testing_watchdog_timer = NULL;
+
+struct timeval check_up_reset_ip = {7850,0};
+static periodic_timer_t *ip_reset_watchdog_timer = NULL;
+
+static char portarray[5][6];
+static char randomnickname[16];
+
+static char *rand_string(char *str, size_t size)
+{
+    const char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    if (size) {
+        --size;
+        for (size_t n = 0; n < size; n++) {
+            int key = rand() % (int) (sizeof charset - 1);
+            str[n] = charset[key];
+        }
+        str[size] = '\0';
+    }
+    return str;
+}
+
+
+/*Moved function from router.c --> check_descriptor_ipaddress_changed(time_t now)  */
+
+static void
+ip_reset_watchdog_callback(periodic_timer_t *timer, void *arg) 
+{
+  (void)timer;
+  (void)arg;
+  
+  const routerinfo_t *my_ri = router_get_my_routerinfo();
+  resolved_addr_method_t method = RESOLVED_ADDR_NONE;
+  char *hostname = NULL;
+  int families[2] = { AF_INET, AF_INET6 };
+  bool has_changed = false;
+  int result_cmp = -1;
+  
+    /* We can't learn our descriptor address without one. */
+  if (my_ri == NULL) {
+    printf("Ugghhhhh we are not entering on right stuff \n");
+  }else
+  {
+   
+    for (size_t i = 0; i < ARRAY_LENGTH(families); i++) {
+      tor_addr_t current;
+      const tor_addr_t *previous;
+      int family = families[i];
+
+      /* Get the descriptor address from the family we are looking up. */
+      previous = &my_ri->ipv4_addr;
+      if (family == AF_INET6) {
+        previous = &my_ri->ipv6_addr;
+      }
+      
+      (void) relay_find_addr_to_publish(get_options(), family,RELAY_FIND_ADDR_NO_FLAG, &current);
+
+      /* The "current" address might be UNSPEC meaning it was not discovered nor
+       * found in our current cache. If we had an address before and we have
+       * none now, we consider this an IP change since it appears the relay lost
+       * its address. */
+
+      if(families[i] == AF_INET)  {
+         result_cmp = strcmp(addrlastinet,get_suggested_address_by_idx(1));
+      }
+      else {
+        result_cmp = strcmp(addrlastinet6,get_suggested_address_by_idx(2));
+      }
+
+      printf("ip_reset_watchdog_callback : %d %d \n",AF_INET,AF_INET6);
+
+      if ( result_cmp != 0 ) {
+        char *source;
+        tor_asprintf(&source, "METHOD=%s%s%s",
+                     resolved_addr_method_to_str(method),
+                     hostname ? " HOSTNAME=" : "",
+                     hostname ? hostname : "");            
+            log_notice(LD_GENERAL,
+             "Guessed our IP address as %s (source: %s).",
+             (family == AF_INET)?addrlastinet:addrlastinet6, get_suggested_address_by_idx((family == AF_INET)?1:2));
+               
+        tor_free(source);
+        has_changed = true;
+      }
+      tor_free(hostname);
+      
+      result_cmp = 0;
+    }
+
+    if(has_changed)
+    {
+      ip_address_changed(0);
+    }
+
+  }
+}
+
+/*
+
+*/
+
+static void
+testing_functions_watchdog_callback(periodic_timer_t *timer, void *arg)
+{
+  (void)timer;
+  (void)arg;
+  char *msg;
+  size_t NCHAR = 14;
+  or_options_t *options = get_options();
+
+  srand(time(NULL));
+
+  int counter = 0;
+  
+  for(counter = 0 ; counter <  9 ; counter++)
+  {
+    printf("last_suggested_address %d :  %s \n",counter,get_suggested_address_by_idx(counter));
+  }
+  
+    for(counter = 0 ; counter <  9 ; counter++)
+  {
+    printf("last_resolved_addrs %d :  %s \n",counter,get_resolved_address_by_idx(counter));
+  }
+  
+  /*this can be random*/
+  tor_snprintf(portarray[0],6,"%s","11111");
+  tor_snprintf(portarray[1],6,"%s","22222");
+  tor_snprintf(portarray[2],6,"%s","33333");
+  tor_snprintf(portarray[3],6,"%s","44444");
+  tor_snprintf(portarray[4],6,"%s","55555");
+ 
+  /*Here goes our stuff where we wish to test*/
+ // counter = 0;
+  //int size = routerset_len(options->EntryNodes);
+  
+ // printf("size of routrerset %d \n" , size);
+  
+  //for(counter = 0 ; counter <  size ; counter++)
+ // {
+  
+ // }
+  
+ 
+  /*Random nickname*/
+
+ // printf("randomnickname\n");
+
+  tor_snprintf(options->Nickname,NCHAR,"%s",rand_string(randomnickname,NCHAR));
+   
+  //printf("randomport\n");
+  options->ORPort_lines->value = tor_strdup("");
+  options->ORPort_lines->value = tor_strdup(&portarray[rand()%5][0]);   
+  
+ // log_notice("New Nickname %s new port %s",options->Nickname,options->ORPort_lines->value);
+
+  set_options(options,&msg);
+  
+  router_rebuild_descriptor(1);
+
+  router_upload_dir_desc_to_dirservers(0);
+  
+  reset_bandwidth_test();
+    
+  router_reset_reachability();  
+  
+  strlcpy(addrlastinet, get_suggested_address_by_idx(1) , TOR_ADDR_BUF_LEN);
+  strlcpy(addrlastinet6,get_suggested_address_by_idx(2), TOR_ADDR_BUF_LEN);
+   
+  resolved_addr_reset_last(AF_INET6);
+  resolved_addr_reset_last(AF_INET);
+
+}
+
 #ifdef HAVE_SYSTEMD_209
 static periodic_timer_t *systemd_watchdog_timer = NULL;
 
@@ -2328,9 +2557,12 @@ ip_address_changed(int on_client_conn)
     }
   } else {
     if (server) {
-      if (get_uptime() > UPTIME_CUTOFF_FOR_NEW_BANDWIDTH_TEST)
+    //  if (get_uptime() > UPTIME_CUTOFF_FOR_NEW_BANDWIDTH_TEST)
         reset_bandwidth_test();
-      reset_uptime();
+        
+      /*Just because we changed ip we dont need reset uptime*/  
+     /// reset_uptime();
+         
       router_reset_reachability();
       /* All relays include their IP addresses as their ORPort addresses in
        * their descriptor.
@@ -2388,6 +2620,20 @@ do_main_loop(void)
                   initialize_periodic_events_cb, NULL);
   event_add(initialize_periodic_events_event, &one_second);
 
+ /*Lets add our */
+  testing_watchdog_timer = periodic_timer_new(tor_libevent_get_base(),
+                                                  &check_up,
+                                                  testing_functions_watchdog_callback,
+                                                  NULL);
+  tor_assert(testing_watchdog_timer);
+  
+  
+  ip_reset_watchdog_timer = periodic_timer_new(tor_libevent_get_base(),
+                                                  &check_up_reset_ip,
+                                                  ip_reset_watchdog_callback,
+                                                  NULL);
+  tor_assert(ip_reset_watchdog_timer);
+
 #ifdef HAVE_SYSTEMD_209
   uint64_t watchdog_delay;
   /* set up systemd watchdog notification. */
@@ -2401,9 +2647,9 @@ do_main_loop(void)
       watchdog.tv_sec = watchdog_delay  / 1000000;
       watchdog.tv_usec = watchdog_delay % 1000000;
 
-      systemd_watchdog_timer = periodic_timer_new(tor_libevent_get_base(),
+      testing_watchdog_timer = periodic_timer_new(tor_libevent_get_base(),
                                                   &watchdog,
-                                                  systemd_watchdog_callback,
+                                                  testing_functions_watchdog_callback,
                                                   NULL);
       tor_assert(systemd_watchdog_timer);
     }

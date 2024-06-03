@@ -21,14 +21,14 @@
 #include "lib/net/resolve.h"
 
 /** Maximum "Address" statement allowed in our configuration. */
-#define MAX_CONFIG_ADDRESS 2
+#define MAX_CONFIG_ADDRESS 9
 
 /** Ease our life. Arrays containing state per address family. These are to
  * add semantic to the code so we know what is accessed. */
 #define IDX_NULL 0 /* Index to zeroed address object. */
 #define IDX_IPV4 1 /* Index to AF_INET. */
 #define IDX_IPV6 2 /* Index to AF_INET6. */
-#define IDX_SIZE 3 /* How many indexes do we have. */
+#define IDX_SIZE 9 /* How many indexes do we have. */
 
 /** Function in our address function table return one of these code. */
 typedef enum {
@@ -44,7 +44,7 @@ typedef enum {
 
 /** Last resolved addresses. */
 static tor_addr_t last_resolved_addrs[] =
-  { TOR_ADDR_NULL, TOR_ADDR_NULL, TOR_ADDR_NULL };
+  { TOR_ADDR_NULL, TOR_ADDR_NULL, TOR_ADDR_NULL, TOR_ADDR_NULL, TOR_ADDR_NULL, TOR_ADDR_NULL , TOR_ADDR_NULL, TOR_ADDR_NULL, TOR_ADDR_NULL };
 CTASSERT(ARRAY_LENGTH(last_resolved_addrs) == IDX_SIZE);
 
 /** Last suggested addresses.
@@ -52,12 +52,12 @@ CTASSERT(ARRAY_LENGTH(last_resolved_addrs) == IDX_SIZE);
  * These addresses come from a NETINFO cell from a trusted relay (currently
  * only authorities). We only use those in last resort. */
 static tor_addr_t last_suggested_addrs[] =
-  { TOR_ADDR_NULL, TOR_ADDR_NULL, TOR_ADDR_NULL };
+  { TOR_ADDR_NULL, TOR_ADDR_NULL, TOR_ADDR_NULL, TOR_ADDR_NULL, TOR_ADDR_NULL, TOR_ADDR_NULL , TOR_ADDR_NULL, TOR_ADDR_NULL, TOR_ADDR_NULL };
 CTASSERT(ARRAY_LENGTH(last_suggested_addrs) == IDX_SIZE);
 
 /** True iff the address was found to be configured that is from the
  * configuration file either using Address or ORPort. */
-static bool last_addrs_configured[] = { false, false, false };
+static bool last_addrs_configured[] = { false, false, false , false, false , false, false , false, false };
 CTASSERT(ARRAY_LENGTH(last_addrs_configured) == IDX_SIZE);
 
 static inline int
@@ -99,6 +99,35 @@ resolved_addr_method_to_str(const resolved_addr_method_t method)
   }
 }
 
+char addrbuf_resolved[TOR_ADDR_BUF_LEN];
+char addrbuf_suggested[TOR_ADDR_BUF_LEN];
+
+/*Just a simple test bool*/
+
+bool someone_is_already_using_me = false;
+    
+const char *get_resolved_address_by_idx(int family)
+{
+
+  //tor_addr_to_str(addrbuf_resolved , &last_resolved_addrs[family], sizeof(addrbuf_resolved), 1);
+    
+  if ( tor_addr_to_str(addrbuf_resolved , &last_resolved_addrs[family], sizeof(addrbuf_resolved), 1) == NULL){
+    strlcpy(addrbuf_resolved, "???", TOR_ADDR_BUF_LEN);
+  }  
+    return &addrbuf_resolved[0];
+}
+
+const char *get_suggested_address_by_idx(int family)
+{
+
+    //tor_addr_to_str(addrbuf_suggested , &last_suggested_addrs[family] , sizeof(addrbuf_suggested), 1);
+    
+   if (tor_addr_to_str(addrbuf_suggested , &last_suggested_addrs[family] , sizeof(addrbuf_suggested), 1) == NULL){
+    strlcpy(addrbuf_suggested, "???", TOR_ADDR_BUF_LEN);
+   } 
+    return &addrbuf_suggested[0];
+}
+
 /** Return true if the last address of family was configured or not. An
  * address is considered configured if it was found in the Address or ORPort
  * statement.
@@ -123,14 +152,32 @@ resolved_addr_get_suggested(int family, tor_addr_t *addr_out)
 
 /** Set the last suggested address into our cache. This is called when we get
  * a new NETINFO cell from a trusted source. */
+ 
+ /*
+ This one update our address some trsuted relay tell to us who we are outside, but the way he updates address is broken. 
+ trying to fix it .... 
+ */
 void
 resolved_addr_set_suggested(const tor_addr_t *addr)
 {
+
+  char addrbuf_suggested_local[TOR_ADDR_BUF_LEN];
+  char addrbuf_last_suggested_local[TOR_ADDR_BUF_LEN];
+  
   if (BUG(tor_addr_family(addr) != AF_INET &&
           tor_addr_family(addr) != AF_INET6)) {
     return;
   }
-
+  
+  if(someone_is_already_using_me)
+  {
+  
+  	printf("Someone is already using it !!!! \n");
+  	return;
+  }
+  
+  someone_is_already_using_me = true;
+  
   /* In case we don't have a configured address, log that we will be using the
    * one discovered from the dirauth. */
   const int idx = af_to_idx(tor_addr_family(addr));
@@ -139,7 +186,70 @@ resolved_addr_set_suggested(const tor_addr_t *addr)
     log_notice(LD_CONFIG, "External address seen and suggested by a "
                           "directory authority: %s", fmt_addr(addr));
   }
-  tor_addr_copy(&last_suggested_addrs[idx], addr);
+  
+  tor_addr_to_str(addrbuf_suggested_local , addr, sizeof(addrbuf_suggested_local), 1);
+  strlcpy(addrbuf_last_suggested_local, get_suggested_address_by_idx((tor_addr_family(addr) == AF_INET)?1:(tor_addr_family(addr) == AF_INET6)?2:11) , TOR_ADDR_BUF_LEN);
+   
+   printf("resolved_addr_set_suggested %s %s %d %d %d %d \n" , addrbuf_last_suggested_local , addrbuf_suggested_local ,   strcmp(addrbuf_last_suggested_local,addrbuf_suggested_local),tor_addr_family(addr),AF_INET, AF_INET6);
+  
+  if(strcmp(addrbuf_last_suggested_local,"??") == 0 )
+  {
+    tor_addr_copy(&last_suggested_addrs[idx], addr);
+    someone_is_already_using_me = false;
+    return;
+  }
+  else if(strcmp(addrbuf_last_suggested_local,addrbuf_suggested_local) == 0 )
+  {
+    tor_addr_copy(&last_suggested_addrs[idx], addr);
+    someone_is_already_using_me = false;
+    return;
+  }
+  
+  /*
+    0 - local address
+    
+    1 - AF_INET
+    2 - AF_INET6
+    
+    3 - AF_INET
+    4 - AF_INET6
+    
+    5 - AF_INET
+    6 - AF_INET6    
+    
+    7 - AF_INET
+    8 - AF_INET6 
+    
+  */
+  
+  if(tor_addr_family(addr) == AF_INET)
+  {
+  
+      if(tor_addr_eq(&last_suggested_addrs[7], addr)){someone_is_already_using_me = false; return;}
+      if(tor_addr_eq(&last_suggested_addrs[5], addr)){someone_is_already_using_me = false; return;}
+      if(tor_addr_eq(&last_suggested_addrs[3], addr)){someone_is_already_using_me = false; return;}
+      if(tor_addr_eq(&last_suggested_addrs[1], addr)){someone_is_already_using_me = false; return;}
+      
+      tor_addr_copy(&last_suggested_addrs[7], &last_suggested_addrs[5]);
+      tor_addr_copy(&last_suggested_addrs[5], &last_suggested_addrs[3]);
+      tor_addr_copy(&last_suggested_addrs[3], &last_suggested_addrs[1]);
+      tor_addr_copy(&last_suggested_addrs[idx], addr);
+  }
+  else if(tor_addr_family(addr) == AF_INET6)
+  {    
+      if(tor_addr_eq(&last_suggested_addrs[8], addr)){someone_is_already_using_me = false; return;}
+      if(tor_addr_eq(&last_suggested_addrs[6], addr)){someone_is_already_using_me = false; return;}
+      if(tor_addr_eq(&last_suggested_addrs[4], addr)){someone_is_already_using_me = false; return;}
+      if(tor_addr_eq(&last_suggested_addrs[2], addr)){someone_is_already_using_me = false; return;}  
+  
+      tor_addr_copy(&last_suggested_addrs[8], &last_suggested_addrs[6]);
+      tor_addr_copy(&last_suggested_addrs[6], &last_suggested_addrs[4]);
+      tor_addr_copy(&last_suggested_addrs[4], &last_suggested_addrs[2]);
+      tor_addr_copy(&last_suggested_addrs[idx], addr);
+  }
+  
+  someone_is_already_using_me = false;
+  //tor_addr_copy(&last_suggested_addrs[idx], addr);
 }
 
 /** Copy the last resolved address of family into addr_out.
@@ -557,13 +667,17 @@ get_address_from_orport(const or_options_t *options, int warn_severity,
  * @param hostname_used Which hostname was used. If none were used, it is
  *                      NULL. (for logging and control port).
  */
+ 
+ /*
+  this is another crazy broken code .... :(
+ */
 void
 resolved_addr_set_last(const tor_addr_t *addr,
                        const resolved_addr_method_t method_used,
                        const char *hostname_used)
 {
   /** Have we done a first resolve. This is used to control logging. */
-  static bool have_resolved_once[] = { false, false, false };
+  static bool have_resolved_once[] = { false, false, false , false, false , false, false , false, false };
   CTASSERT(ARRAY_LENGTH(have_resolved_once) == IDX_SIZE);
 
   bool *done_one_resolve;
