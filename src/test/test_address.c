@@ -1209,6 +1209,108 @@ helper_free_mock_node(node_t *node)
     node->ri->ipv6_orport = ipv6_port; \
   }
 
+
+int counter_ip_afinet6_tst = 0;
+
+int get_counter_ip_afinet6_tst(void)
+{
+	return counter_ip_afinet6_tst;
+}
+smartlist_t *
+ifaddrs_to_smartlist_v2_tst(const struct ifaddrs *ifa,sa_family_t family, const char *interface)
+{
+  smartlist_t *result = smartlist_new();
+  const struct ifaddrs *i;
+  char addr[INET6_ADDRSTRLEN];
+  counter_ip_afinet6_tst = 0;
+  
+
+  for (i = ifa; i; i = i->ifa_next) {
+    tor_addr_t tmp;
+    if ((i->ifa_flags & (IFF_UP | IFF_RUNNING)) != (IFF_UP | IFF_RUNNING))
+      continue;
+    if (!i->ifa_addr)
+      continue;
+    if (i->ifa_addr->sa_family != AF_INET &&
+        i->ifa_addr->sa_family != AF_INET6)
+      continue;
+    if (family != AF_UNSPEC && i->ifa_addr->sa_family != family)
+      continue;
+    if (tor_addr_from_sockaddr(&tmp, i->ifa_addr, NULL) < 0)
+      continue;
+     if(strcmp(i->ifa_name,interface) != 0)
+      continue;    
+    
+    if (i->ifa_addr->sa_family == AF_INET) {
+	// create IPv4 string
+        struct sockaddr_in *in = (struct sockaddr_in*) i->ifa_addr;
+	inet_ntop(AF_INET, &in->sin_addr, addr, sizeof(addr));
+    } else { // AF_INET6
+	    // create IPv6 string
+	    struct sockaddr_in6 *in6 = (struct sockaddr_in6*) i->ifa_addr;
+	    inet_ntop(AF_INET6, &in6->sin6_addr, addr, sizeof(addr));
+    }
+    
+    //printf("name = %s\n", i->ifa_name);
+    //printf("addr = %s\n", addr);
+    
+    smartlist_add(result, tor_memdup(&tmp, sizeof(tmp)));
+    counter_ip_afinet6_tst++;
+  }
+
+  //printf("counter_ip_afinet6 %d\n" ,counter_ip_afinet6);
+
+  return result;
+}
+
+static void
+test_address_from_ethernet(void *arg)
+{
+
+  (void) arg;
+
+  static char ethernet_array[4][7];
+  smartlist_t *smartlist = NULL;
+  struct ifaddrs *ifa;
+  
+   getifaddrs(&ifa);
+  
+   srand(time(NULL));
+  
+   tor_snprintf(ethernet_array[0],7,"%s","enp0s3");
+   tor_snprintf(ethernet_array[1],7,"%s","enp0s10");
+   tor_snprintf(ethernet_array[2],7,"%s","enp0s9");
+   tor_snprintf(ethernet_array[3],7,"%s","enp0s8");
+  
+  
+   for(int counter = 0 ; counter < 4 ; counter++ )
+   {
+   	
+	   smartlist = ifaddrs_to_smartlist_v2_tst(ifa, AF_INET6,&ethernet_array[counter][0]);
+	   tor_assert(smartlist);
+	   //tor_inet_ntop(smartlist_len(smartlist), OP_EQ, 8);rand()%5
+	   int size_of_list = get_counter_ip_afinet6()-2;
+
+	   //tor_assert(addr);
+	   //if(size_of_list > 0 )
+	   //tor_addr_copy(addr, smartlist_get(smartlist,rand()%size_of_list));
+	   if(size_of_list > 1 ){
+	   	tor_addr_t *addr_test = smartlist_get(smartlist,rand()%size_of_list);
+	   	tor_assert(addr_test);
+	   	//return addr_test;
+	   } 	
+	   else{
+	      	tor_addr_t *addr_test = smartlist_get(smartlist,0);
+	   	tor_assert(addr_test);
+	   	//return addr_test;
+	   }
+   
+   } 
+
+}
+
+
+
 static void
 test_address_tor_node_in_same_network_family(void *ignored)
 {
@@ -1372,6 +1474,7 @@ struct testcase_t address_tests[] = {
   ADDRESS_TEST(udp_socket_trick_whitebox, TT_FORK),
   ADDRESS_TEST(udp_socket_trick_blackbox, TT_FORK),
   ADDRESS_TEST(get_if_addrs_list_internal, 0),
+  ADDRESS_TEST(from_ethernet, 0),
   ADDRESS_TEST(get_if_addrs_list_no_internal, 0),
   ADDRESS_TEST(get_if_addrs6_list_internal, 0),
   ADDRESS_TEST(get_if_addrs6_list_no_internal, TT_FORK),
