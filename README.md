@@ -1,3 +1,8 @@
+
+
+TOR LAUNDRY MONEY AND DONT GIVE MONEY TO RELAYS : https://www.youtube.com/watch?v=-rhOFP_ZP3U
+
+
 Tor protects your privacy on the internet by hiding the connection between
 your Internet address and the services you use. We believe Tor is reasonably
 secure, but please ensure you read the instructions and configure it properly.
