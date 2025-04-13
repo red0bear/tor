@@ -1,3 +1,11 @@
+NOTICE: 
+
+TOR DONT GIVE YOU SAFETY AND SECURITY
+MOST OF RELAYS ARE USED TO SNIFF ABOUT YOUR DATA AND CONNECTION
+DIRAUTH ARE LIKE CENTRALIZED DATA ON DEVS 
+ACTUAL STATE OF TOR VANILLA SOMETIMES SOUND MORE LIKE A BOTNET
+
+
 Tor protects your privacy on the internet by hiding the connection between
 your Internet address and the services you use. We believe Tor is reasonably
 secure, but please ensure you read the instructions and configure it properly.
